@@ -277,4 +277,4 @@ WORKLOADS=$(jq -n \
     '{cpu_workloads: $cpu, cuda_workloads: $cuda, network_workloads: $network}')
 
 # Run the workflow with the list of workloads.
-echo $WORKLOADS | gh workflow run suite.yml --ref $GIT_REF --json
+echo $WORKLOADS | gh workflow run suite.yml --ref $GIT_REF --json -R https://github.com/succinctlabs/sp1-wip
