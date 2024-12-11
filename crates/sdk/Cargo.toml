@@ -52,6 +52,7 @@ alloy-signer = { version = "0.5", optional = true }
 alloy-signer-local = { version = "0.5", optional = true }
 alloy-primitives = { version = "0.8", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+serde_json = "1.0.133"
 
 [dev-dependencies]
 test-artifacts = { workspace = true }
