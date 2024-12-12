@@ -66,7 +66,6 @@ NETWORK_WORKLOADS=(
     "fibonacci-40m"
     "fibonacci-4b"
     "fibonacci-4m"
-    "groth16-proof-verify"
     "helios"
     "json"
     "keccak256-100kb"
@@ -232,8 +231,6 @@ NETWORK_WORKLOADS=(
     "op-succinct-op-sepolia-range-17685896-17685897"
     "op-succinct-op-sepolia-range-17985900-17985905"
     "op-succinct-op-sepolia-range-18129400-18129401"
-    "proofrequest_01jabrkdjfeykrekt9xxns1mg7_v3_0_0_rc4"
-    "proofrequest_01jabz7w1tef1a16q75fa3mft0_v3_0_0_rc4"
     "raiko-a7-10"
     "regex"
     "reth"
@@ -267,6 +264,10 @@ NETWORK_WORKLOADS=(
     # "vector-01j6y0q023edftg2z0d3cj1bgh"
     # "vector-01j6y0zfh4edftww00rt660w3q"
     # "vector-01j6y176ykff5vcpxwa8gk1vbd"
+
+    # "groth16-proof-verify"
+    # "proofrequest_01jabrkdjfeykrekt9xxns1mg7_v3_0_0_rc4"
+    # "proofrequest_01jabz7w1tef1a16q75fa3mft0_v3_0_0_rc4"
 )
 
 # Create a JSON object with the list of workloads.
