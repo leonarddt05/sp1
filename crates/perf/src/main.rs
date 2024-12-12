@@ -198,7 +198,8 @@ fn main() {
                 .expect("SP1_PRIVATE_KEY must be set for remote proving");
             let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
             let skip_simulation =
-                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+                // env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+                true;
 
             let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
 
@@ -211,19 +212,24 @@ fn main() {
             }
 
             let prover = prover_builder.private_key(private_key).build();
-            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
+            // let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
-            let use_groth16: bool = rand::thread_rng().gen();
-            if use_groth16 {
-                let (proof, _) =
-                    time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+            let (proof, _) =
+                time_operation(|| prover.prove(&pk, stdin.clone()).compressed().run().unwrap());
 
-                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-            } else {
-                let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
-                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-            }
+            // let use_groth16: bool = rand::thread_rng().gen();
+            // if use_groth16 {
+            //     let (proof, _) =
+            //         time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+
+            //     let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            // } else {
+            //     let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+
+            //     let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            // }
         }
         ProverMode::Mock => unreachable!(),
     };
