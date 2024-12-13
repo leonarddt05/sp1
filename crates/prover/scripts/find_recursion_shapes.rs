@@ -40,6 +40,7 @@ fn main() {
 
     // Set whether to verify verification keys.
     prover.vk_verification = !args.dummy;
+    prover.join_programs_map.clear();
 
     // Get the default compress shape configuration.
     let compress_shape_config =
@@ -54,7 +55,9 @@ fn main() {
 
     // Check that this candidate is big enough for all core shapes, including those with
     // precompiles.
-    assert!(check_shapes(args.recursion_batch_size, false, args.num_compiler_workers, &prover,));
+    assert!(
+        check_shapes(args.recursion_batch_size, false, args.num_compiler_workers, &mut prover,)
+    );
 
     let mut answer = candidate.clone();
 
@@ -73,7 +76,7 @@ fn main() {
                     args.recursion_batch_size,
                     false,
                     args.num_compiler_workers,
-                    &prover,
+                    &mut prover,
                 );
             }
             answer.insert(key.clone(), new_val + 1);
@@ -96,7 +99,7 @@ fn main() {
                     args.recursion_batch_size,
                     true,
                     args.num_compiler_workers,
-                    &prover,
+                    &mut prover,
                 );
             }
             no_precompile_answer.insert(key.clone(), new_val + 1);
@@ -108,11 +111,12 @@ fn main() {
 
     // First, check that the current shrink shape is compatible with the compress shape choice
     // arising from the tuning process above.
+
+    // TODO: set the join program map to empty.
     assert!({
         prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
         catch_unwind(AssertUnwindSafe(|| {
             prover.shrink_prover.setup(&prover.program_from_shape(
-                true,
                 sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
                     SP1ProofShape::Shrink(OrderedShape {
                         inner: answer.clone().into_iter().collect::<Vec<_>>(),
@@ -136,7 +140,6 @@ fn main() {
                 prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
                 done = catch_unwind(AssertUnwindSafe(|| {
                     prover.shrink_prover.setup(&prover.program_from_shape(
-                        true,
                         sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
                             SP1ProofShape::Shrink(OrderedShape {
                                 inner: answer.clone().into_iter().collect::<Vec<_>>(),

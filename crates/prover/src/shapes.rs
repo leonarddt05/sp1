@@ -61,7 +61,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     reduce_batch_size: usize,
     no_precompiles: bool,
     num_compiler_workers: usize,
-    prover: &SP1Prover<C>,
+    prover: &mut SP1Prover<C>,
 ) -> bool {
     let (shape_tx, shape_rx) =
         std::sync::mpsc::sync_channel::<SP1CompressProgramShape>(num_compiler_workers);
@@ -85,6 +85,9 @@ pub fn check_shapes<C: SP1ProverComponents>(
     // The Merkle tree height.
     let height = num_shapes.next_power_of_two().ilog2() as usize;
 
+    // Empty the join program map so that we recompute the join program.
+    prover.join_programs_map.clear();
+
     let compress_ok = std::thread::scope(|s| {
         // Initialize compiler workers.
         for _ in 0..num_compiler_workers {
@@ -96,7 +99,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
                     tracing::info!("shape is {:?}", shape);
                     let program = catch_unwind(AssertUnwindSafe(|| {
                         // Try to build the recursion program from the given shape.
-                        prover.program_from_shape(true, shape.clone(), None)
+                        prover.program_from_shape(shape.clone(), None)
                     }));
                     match program {
                         Ok(_) => {}
@@ -140,6 +143,9 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
     // Setup the prover.
     let mut prover = SP1Prover::<C>::new();
     prover.vk_verification = !dummy;
+    if !dummy {
+        prover.join_programs_map.clear();
+    }
     let prover = Arc::new(prover);
 
     // Get the shape configs.
@@ -204,7 +210,7 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
                         let shape_clone = shape.clone();
                         // Spawn on another thread to handle panics.
                         let program_thread = std::thread::spawn(move || {
-                            prover.program_from_shape(false, shape_clone, None)
+                            prover.program_from_shape(shape_clone, None)
                         });
                         match program_thread.join() {
                             Ok(program) => program_tx.send((i, program, is_shrink)).unwrap(),
@@ -263,10 +269,15 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
             }
 
             // Generate shapes and send them to the compiler workers.
-            all_shapes
+            let subset_shapes = all_shapes
                 .into_iter()
                 .enumerate()
                 .filter(|(i, _)| indices_set.as_ref().map(|set| set.contains(i)).unwrap_or(true))
+                .collect::<Vec<_>>();
+
+            subset_shapes
+                .clone()
+                .into_iter()
                 .map(|(i, shape)| (i, SP1CompressProgramShape::from_proof_shape(shape, height)))
                 .for_each(|(i, program_shape)| {
                     shape_tx.send((i, program_shape)).unwrap();
@@ -280,6 +291,11 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
             let vk_set = vk_rx.iter().collect::<BTreeSet<_>>();
 
             let panic_indices = panic_rx.iter().collect::<Vec<_>>();
+            for (i, shape) in subset_shapes {
+                if panic_indices.contains(&i) {
+                    tracing::info!("panic shape {}: {:?}", i, shape);
+                }
+            }
 
             (vk_set, panic_indices, height)
         })
@@ -332,7 +348,6 @@ impl SP1ProofShape {
             .all_shapes()
             .map(Self::Recursion)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
-                // Weird that we do 1..=reduce_batch_size and also.
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
             }))
             .chain(
@@ -420,7 +435,6 @@ impl SP1CompressProgramShape {
 impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn program_from_shape(
         &self,
-        shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         shape: SP1CompressProgramShape,
         shrink_shape: Option<RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {
@@ -436,7 +450,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             SP1CompressProgramShape::Compress(shape) => {
                 let input =
                     SP1CompressWithVKeyWitnessValues::dummy(self.compress_prover.machine(), &shape);
-                self.compress_program(shape_tuning, &input)
+                self.compress_program(&input)
             }
             SP1CompressProgramShape::Shrink(shape) => {
                 let input =

@@ -138,14 +138,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
             ],
             // Second fastest shape.
             [
-                (mem_var.clone(), 19),
+                (mem_var.clone(), 20),
                 (select.clone(), 20),
                 (mem_const.clone(), 18),
                 (batch_fri.clone(), 21),
                 (base_alu.clone(), 16),
                 (ext_alu.clone(), 19),
                 (exp_reverse_bits_len.clone(), 18),
-                (poseidon2_wide.clone(), 17),
+                (poseidon2_wide.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
         ]

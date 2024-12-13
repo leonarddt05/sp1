@@ -195,12 +195,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .then_some(RecursionShapeConfig::default());
 
         let vk_verification =
-            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
+            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
         tracing::info!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            bincode::deserialize(include_bytes!("./artifacts/vk_map.bin")).unwrap()
+            bincode::deserialize(include_bytes!("./artifacts/vk_map_324378.bin")).unwrap()
         } else {
             bincode::deserialize(include_bytes!("./artifacts/dummy_vk_map.bin")).unwrap()
         };
@@ -351,7 +351,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
                     // Insert the program into the cache.
-                    self.program_from_shape(false, compress_shape, None);
+                    self.program_from_shape(compress_shape, None);
                 }
             }
 
@@ -477,10 +477,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         &mut witness_stream,
                                     );
 
-                                    (
-                                        self.compress_program(false, &input_with_merkle),
-                                        witness_stream,
-                                    )
+                                    (self.compress_program(&input_with_merkle), witness_stream)
                                 }
                             });
 
@@ -773,10 +770,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Make the compress proof.
         let SP1ReduceProof { vk: compressed_vk, proof: compressed_proof } = reduced_proof;
         let input = SP1CompressWitnessValues {
-            vks_and_proofs: vec![(compressed_vk, compressed_proof)],
+            vks_and_proofs: vec![(compressed_vk.clone(), compressed_proof)],
             is_complete: true,
         };
 
+        assert!(self.recursion_vk_map.contains_key(&compressed_vk.hash_babybear()));
         let input_with_merkle = self.make_merkle_proofs(input);
 
         let program =
@@ -974,12 +972,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn compress_program(
         &self,
-        shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        if self.compress_shape_config.is_some() && !shape_tuning {
-            self.join_programs_map.get(&input.shape()).map(Clone::clone).unwrap()
-        } else {
+        self.join_programs_map.get(&input.shape()).cloned().unwrap_or_else(|| {
+            tracing::warn!("join program not found in map, recomputing join program.");
             // Get the operations.
             Arc::new(compress_program_from_input::<C>(
                 self.compress_shape_config.as_ref(),
@@ -987,7 +983,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 self.vk_verification,
                 input,
             ))
-        }
+        })
     }
 
     pub fn shrink_program(

@@ -33,8 +33,6 @@ fn main() {
     let build_dir = args.build_dir;
     let num_compiler_workers = 1;
     let num_setup_workers = 1;
-    // let range_start = args.start;
-    // let range_end = args.end;
 
     build_vk_map_to_file::<CpuProverComponents>(
         build_dir,
