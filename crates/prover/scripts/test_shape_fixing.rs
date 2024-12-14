@@ -29,8 +29,9 @@ fn test_shape_fixing(
 
     // Setup the executor.
     let mut executor = Executor::with_context(program, opts, context);
-    executor.maximal_shapes =
-        Some(shape_config.maximal_core_shapes(log2_ceil_usize(opts.shard_size)));
+    executor.maximal_shapes = Some(
+        shape_config.maximal_core_shapes(log2_ceil_usize(opts.shard_size)).into_iter().collect(),
+    );
     executor.write_vecs(&stdin.buffer);
     for (proof, vkey) in stdin.proofs.iter() {
         executor.write_proof(proof.clone(), vkey.clone());
@@ -43,10 +44,10 @@ fn test_shape_fixing(
         finished = f;
         for mut record in records {
             let _ = record.defer();
-            shape_config.fix_shape(&mut record).unwrap();
-
             let heights = RiscvAir::<BabyBear>::core_heights(&record);
             println!("heights: {:?}", heights);
+
+            shape_config.fix_shape(&mut record).unwrap();
 
             if record.contains_cpu()
                 && record.shape.unwrap().height(&RiscvAirId::Cpu).unwrap() > opts.shard_size

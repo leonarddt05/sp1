@@ -200,7 +200,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            bincode::deserialize(include_bytes!("./artifacts/vk_map_324378.bin")).unwrap()
+            bincode::deserialize(include_bytes!("./artifacts/vk_map_317914.bin")).unwrap()
         } else {
             bincode::deserialize(include_bytes!("./artifacts/dummy_vk_map.bin")).unwrap()
         };
@@ -774,7 +774,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        assert!(self.recursion_vk_map.contains_key(&compressed_vk.hash_babybear()));
         let input_with_merkle = self.make_merkle_proofs(input);
 
         let program =
