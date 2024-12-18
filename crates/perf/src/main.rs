@@ -1,14 +1,14 @@
 use std::{
     env,
-    time::{Duration, Instant},
+    io::Write,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use clap::{command, Parser};
-use rand::Rng;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
 use sp1_prover::{components::CpuProverComponents, ProverMode};
-use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
+use sp1_sdk::{self, block_on, NetworkProverV2, Prover, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use test_artifacts::VERIFY_PROOF_ELF;
 
@@ -56,14 +56,14 @@ fn main() {
     sp1_sdk::utils::setup_logger();
     let args = PerfArgs::parse();
 
-    let elf = std::fs::read(args.program).expect("failed to read program");
+    let elf = std::fs::read(&args.program).expect("failed to read program");
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
     let opts = SP1ProverOpts::auto();
 
     let prover = SP1Prover::<CpuProverComponents>::new();
-    let (pk, pk_d, program, vk) = prover.setup(&elf);
+    let (_, pk_d, program, vk) = prover.setup(&elf);
     match args.mode {
         ProverMode::Cpu => {
             let context = SP1Context::default();
@@ -197,39 +197,62 @@ fn main() {
             let private_key = env::var("SP1_PRIVATE_KEY")
                 .expect("SP1_PRIVATE_KEY must be set for remote proving");
             let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-            let skip_simulation =
-                // env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
-                true;
+            let skip_simulation = true;
+            let network_prover = NetworkProverV2::new(&private_key, rpc_url, skip_simulation);
 
-            let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
+            let proof_id = block_on(network_prover.request_proof(
+                &elf,
+                &stdin,
+                sp1_sdk::network_v2::proto::network::ProofMode::Compressed,
+                100000000000,
+                None,
+            ))
+            .unwrap();
 
-            if let Some(rpc_url) = rpc_url {
-                prover_builder = prover_builder.rpc_url(rpc_url);
+            let elf_clone = elf.clone();
+            let execute_handle = std::thread::spawn(move || {
+                let ((_, report), time) = time_operation(|| {
+                    prover.execute(&elf_clone, &stdin, Default::default()).unwrap()
+                });
+                (report.total_instruction_count(), time)
+            });
+
+            let start_time = SystemTime::now();
+            let (proof, prove_time) = time_operation(|| {
+                block_on(network_prover.wait_proof(&proof_id, Some(Duration::from_secs(60 * 60))))
+                    .unwrap()
+            });
+
+            let (cycles, execute_time) = execute_handle.join().unwrap();
+
+            let (_, verify_time) = time_operation(|| network_prover.verify(&proof, &vk));
+
+            // Write data to csv
+            let mut csv_file = std::fs::File::options().append(true).open("network.csv").unwrap();
+
+            // Write header if empty
+            if csv_file.metadata().unwrap().len() == 0 {
+                csv_file
+                .write_all(b"start_time,proof_id,program,cycles,prove_mhz,execute_mhz,execute_time,prove_time,verify_time\n")
+                .unwrap();
             }
-
-            if skip_simulation {
-                prover_builder = prover_builder.skip_simulation();
-            }
-
-            let prover = prover_builder.private_key(private_key).build();
-            // let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
-
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).compressed().run().unwrap());
-
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-
-            // let use_groth16: bool = rand::thread_rng().gen();
-            // if use_groth16 {
-            //     let (proof, _) =
-            //         time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
-
-            //     let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-            // } else {
-            //     let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
-
-            //     let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-            // }
+            csv_file
+                .write_all(
+                    format!(
+                        "{},{},{},{},{},{},{},{},{}\n",
+                        start_time.duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                        hex::encode(proof_id),
+                        args.program,
+                        cycles,
+                        cycles as f64 / 1_000_000.0 / prove_time.as_secs_f64(),
+                        cycles as f64 / 1_000_000.0 / execute_time.as_secs_f64(),
+                        execute_time.as_secs_f64(),
+                        prove_time.as_secs_f64(),
+                        verify_time.as_secs_f64()
+                    )
+                    .as_bytes(),
+                )
+                .unwrap();
         }
         ProverMode::Mock => unreachable!(),
     };

@@ -5668,7 +5668,6 @@ dependencies = [
  "sp1-zkvm",
  "strum",
  "strum_macros",
- "subenum",
  "test-artifacts",
  "thiserror 1.0.69",
  "tiny-keccak",
@@ -5834,6 +5833,7 @@ version = "4.0.0-rc.1"
 dependencies = [
  "bincode",
  "clap",
+ "hex",
  "p3-baby-bear",
  "rand 0.8.5",
  "serde_json",
@@ -6298,18 +6298,6 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.90",
-]
-
-[[package]]
-name = "subenum"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f5d5dfb8556dd04017db5e318bbeac8ab2b0c67b76bf197bfb79e9b29f18ecf"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
