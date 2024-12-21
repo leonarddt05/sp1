@@ -200,8 +200,11 @@ fn main() {
             let skip_simulation = true;
             let network_prover = NetworkProverV2::new(&private_key, rpc_url, skip_simulation);
 
+            let (pk, vk) = network_prover.setup(&elf);
+            let vk_hash = block_on(network_prover.register_program(&pk.vk, &pk.elf)).unwrap();
+
             let proof_id = block_on(network_prover.request_proof(
-                &elf,
+                &vk_hash,
                 &stdin,
                 sp1_sdk::network_v2::proto::network::ProofMode::Compressed,
                 100000000000,
