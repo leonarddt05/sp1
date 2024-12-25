@@ -63,10 +63,13 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
             _ => panic!("Invalid operation"),
         };
 
-        let mut result =
-            c0.to_u32_digits().into_iter().chain(c1.to_u32_digits()).collect::<Vec<u32>>();
-
+        // In 1/2^32 cases, to_u32_digits() returns a vector that is shorter than num_words / 2.  
+        // Extend the vector with zeros to the correct length.
+        let mut result = c0.to_u32_digits();
+        result.resize(num_words / 2, 0);
+        result.append(&mut c1.to_u32_digits());
         result.resize(num_words, 0);
+
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id;
